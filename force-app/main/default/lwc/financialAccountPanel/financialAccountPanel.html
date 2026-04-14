@@ -1,0 +1,147 @@
+<!--
+  @description       : 
+  @author            : ChangeMeIn@UserSettingsUnder.SFDoc
+  @group             : 
+  @last modified on  : 04-14-2026
+  @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
+-->
+<template>
+    <lightning-card title="Cuentas Financieras" icon-name="standard:financial_account">
+
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Cargando..." size="medium"></lightning-spinner>
+        </template>
+
+        <template if:true={errorMessage}>
+            <div class="slds-notify slds-notify_alert slds-alert_error slds-m-around_small">
+                <p>{errorMessage}</p>
+            </div>
+        </template>
+
+        <div slot="actions">
+            <lightning-button
+                label="Nueva Cuenta Financiera"
+                icon-name="utility:add"
+                onclick={handleNew}>
+            </lightning-button>
+        </div>
+
+        <template if:true={hasRecords}>
+            <div class="slds-scrollable_x">
+                <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_striped">
+                    <thead>
+                        <tr class="slds-line-height_reset">
+                            <th scope="col"><div class="slds-truncate">Nombre</div></th>
+                            <th scope="col"><div class="slds-truncate">Tipo de Tarjeta</div></th>
+                            <th scope="col"><div class="slds-truncate">Número de Tarjeta</div></th>
+                            <th scope="col"><div class="slds-truncate">Línea Aprobada</div></th>
+                            <th scope="col"><div class="slds-truncate">Estado</div></th>
+                            <th scope="col"><div class="slds-truncate">Fecha de Emisión</div></th>
+                            <th scope="col"><div class="slds-truncate">Acciones</div></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={financialAccounts} for:item="fa">
+                            <tr key={fa.Id}>
+                                <td><div class="slds-truncate">{fa.Name}</div></td>
+                                <td><div class="slds-truncate">{fa.CardType__c}</div></td>
+                                <td><div class="slds-truncate">{fa.CardNumber__c}</div></td>
+                                <td><div class="slds-truncate">{fa.ApprovedCreditLine__c}</div></td>
+                                <td><div class="slds-truncate">{fa.CardStatus__c}</div></td>
+                                <td><div class="slds-truncate">{fa.IssueDate__c}</div></td>
+                                <td>
+                                    <lightning-button-icon
+                                        icon-name="utility:edit"
+                                        alternative-text="Editar"
+                                        data-id={fa.Id}
+                                        onclick={handleEdit}>
+                                    </lightning-button-icon>
+                                    <lightning-button-icon
+                                        icon-name="utility:delete"
+                                        alternative-text="Eliminar"
+                                        data-id={fa.Id}
+                                        onclick={handleDelete}>
+                                    </lightning-button-icon>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </template>
+
+        <template if:false={hasRecords}>
+            <div class="slds-align_absolute-center slds-p-around_medium">
+                <p class="slds-text-color_weak">No hay cuentas financieras registradas.</p>
+            </div>
+        </template>
+
+        <template if:true={showModal}>
+            <section role="dialog" class="slds-modal slds-fade-in-open">
+                <div class="slds-modal__container">
+                        <header class="slds-modal__header" style="background-color: #0A2463; border-radius: 4px 4px 0 0;">
+                            <h2 class="slds-modal__title" 
+                                style="color: #ffffff; font-weight: 700;">
+                                {modalTitle}
+                            </h2>
+                        </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <lightning-input
+                            label="Nombre"
+                            value={currentRecord.Name}
+                            data-field="Name"
+                            onchange={handleFieldChange}>
+                        </lightning-input>
+                        <lightning-combobox
+                            label="Tipo de Tarjeta"
+                            value={currentRecord.CardType__c}
+                            options={cardTypeOptions}
+                            data-field="CardType__c"
+                            onchange={handleFieldChange}>
+                        </lightning-combobox>
+                        <lightning-input
+                            label="Número de Tarjeta"
+                            value={currentRecord.CardNumber__c}
+                            data-field="CardNumber__c"
+                            onchange={handleFieldChange}>
+                        </lightning-input>
+                        <lightning-input
+                            type="number"
+                            label="Línea de Crédito Aprobada"
+                            value={currentRecord.ApprovedCreditLine__c}
+                            data-field="ApprovedCreditLine__c"
+                            onchange={handleFieldChange}>
+                        </lightning-input>
+                        <lightning-combobox
+                            label="Estado de la Tarjeta"
+                            value={currentRecord.CardStatus__c}
+                            options={cardStatusOptions}
+                            data-field="CardStatus__c"
+                            onchange={handleFieldChange}>
+                        </lightning-combobox>
+                        <lightning-input
+                            type="date"
+                            label="Fecha de Emisión"
+                            value={currentRecord.IssueDate__c}
+                            data-field="IssueDate__c"
+                            onchange={handleFieldChange}>
+                        </lightning-input>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button
+                            label="Cancelar"
+                            onclick={handleCancel}>
+                        </lightning-button>
+                        <lightning-button
+                            variant="brand"
+                            label="Guardar"
+                            onclick={handleSave}>
+                        </lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+
+    </lightning-card>
+</template>
