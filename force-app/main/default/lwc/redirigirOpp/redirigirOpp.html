@@ -1,0 +1,32 @@
+<!--
+  @description       : 
+  @author            : ChangeMeIn@UserSettingsUnder.SFDoc
+  @group             : 
+  @last modified on  : 04-16-2026
+  @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
+-->
+<template>
+    <lightning-card title="Oportunidad Asociada" icon-name="standard:opportunity">
+        <div class="slds-p-around_medium">
+            <template if:true={isLoading}>
+                <lightning-spinner 
+                    alternative-text="Cargando..." 
+                    size="small">
+                </lightning-spinner>
+            </template>
+            <template if:false={isLoading}>
+                <lightning-button
+                    label="Ver Oportunidad"
+                    icon-name="utility:forward"
+                    onclick={handleRedirect}
+                    variant="brand">
+                </lightning-button>
+            </template>
+            <template if:true={errorMessage}>
+                <p class="slds-text-color_error slds-m-top_small">
+                    {errorMessage}
+                </p>
+            </template>
+        </div>
+    </lightning-card>
+</template>

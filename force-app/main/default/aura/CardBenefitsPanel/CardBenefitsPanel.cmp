@@ -2,7 +2,7 @@
   @description       : 
   @author            : ChangeMeIn@UserSettingsUnder.SFDoc
   @group             : 
-  @last modified on  : 04-14-2026
+  @last modified on  : 04-15-2026
   @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
 -->
 <aura:component controller="Benefits_Ctr"
@@ -22,7 +22,7 @@
             </h2>
         </div>
 
-        <div class="slds-card__body">
+        <div class="slds-card__body slds-card__body_inner" style="overflow-x: auto; width: 100%;">
 
             <aura:if isTrue="{!v.isLoading}">
                 <lightning:spinner alternativeText="Cargando..." size="medium"/>
@@ -36,28 +36,39 @@
 
             <aura:if isTrue="{!and(not(v.isLoading), empty(v.errorMessage))}">
                 <aura:if isTrue="{!v.benefits.length > 0}">
-                    <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_striped">
+                    <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_striped"
+                        style="min-width: 900px; width: max-content;">
                         <thead>
                             <tr class="slds-line-height_reset">
-                                <th scope="col"><div class="slds-truncate">Nombre Tarjeta</div></th>
-                                <th scope="col"><div class="slds-truncate">TEA (%)</div></th>
-                                <th scope="col"><div class="slds-truncate">Millas</div></th>
-                                <th scope="col"><div class="slds-truncate">CashBack (%)</div></th>
-                                <th scope="col"><div class="slds-truncate">Cuota Anual</div></th>
-                                <th scope="col"><div class="slds-truncate">Producto</div></th>
-                                <th scope="col"><div class="slds-truncate">Beneficios Adicionales</div></th>
+                                <th scope="col" style="min-width:130px; white-space:nowrap">
+                                    <div>Nombre Tarjeta</div>
+                                </th>
+                                <th scope="col" style="min-width:80px; white-space:nowrap">
+                                    <div>TEA (%)</div>
+                                </th>
+                                <th scope="col" style="min-width:70px; white-space:nowrap">
+                                    <div>Millas</div>
+                                </th>
+                                <th scope="col" style="min-width:100px; white-space:nowrap">
+                                    <div>CashBack (%)</div>
+                                </th>
+                                <th scope="col" style="min-width:110px; white-space:nowrap">
+                                    <div>Cuota Anual</div>
+                                </th>
+                                <th scope="col" style="min-width:280px;">
+                                    <div>Beneficios Adicionales</div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
                             <aura:iteration items="{!v.benefits}" var="benefit">
                                 <tr>
-                                    <td><div class="slds-truncate">{!benefit.CardName__c}</div></td>
-                                    <td><div class="slds-truncate">{!benefit.AnnualEffectiveRate__c}</div></td>
-                                    <td><div class="slds-truncate">{!benefit.MilesAccumulation__c}</div></td>
-                                    <td><div class="slds-truncate">{!benefit.CashBackPercentage__c}</div></td>
-                                    <td><div class="slds-truncate">{!benefit.AnnualFee__c}</div></td>
-                                    <td><div class="slds-truncate">{!benefit.Product__r.Name}</div></td>
-                                    <td><div class="slds-truncate">{!benefit.AdditionalBenefits__c}</div></td>
+                                    <td style="white-space:nowrap">{!benefit.CardName__c}</td>
+                                    <td>{!benefit.AnnualEffectiveRate__c}</td>
+                                    <td>{!benefit.MilesAccumulation__c}</td>
+                                    <td>{!benefit.CashBackPercentage__c}</td>
+                                    <td>{!benefit.AnnualFee__c}</td>
+                                    <td>{!benefit.AdditionalBenefits__c}</td>
                                 </tr>
                             </aura:iteration>
                         </tbody>
