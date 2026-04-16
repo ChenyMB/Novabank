@@ -2,13 +2,13 @@
  * @description       : 
  * @author            : ChangeMeIn@UserSettingsUnder.SFDoc
  * @group             : 
- * @last modified on  : 04-14-2026
+ * @last modified on  : 04-16-2026
  * @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
 **/
 public with sharing class Benefits_Ctr {
     /**
      * Obtiene todos los beneficios activos ordenados por prioridad ascendente.
-     * @return Lista de Beneficios__cBenefits__c ordenada por Priority__c
+     * @return Lista de Benefits__c ordenada por Priority__c
      */
     @AuraEnabled(cacheable=true)
     public static List<Benefits__c> getBenefits() {

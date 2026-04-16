@@ -2,13 +2,19 @@
  * @description       : 
  * @author            : ChangeMeIn@UserSettingsUnder.SFDoc
  * @group             : 
- * @last modified on  : 04-14-2026
+ * @last modified on  : 04-15-2026
  * @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
 **/
 public with sharing class ContractEmail_Queueable implements Queueable {
 
     private Id oppId;
 
+    @TestVisible 
+    private static Boolean overrideOpportunityAccessible = null;
+    @TestVisible 
+    private static Boolean overrideContentDocLinkAccessible = null;
+    @TestVisible 
+    private static Boolean overrideContentVersionAccessible = null;
     /**
      * Constructor
      * @param oppId Id de la Opportunity ganada
@@ -38,11 +44,12 @@ public with sharing class ContractEmail_Queueable implements Queueable {
             ContentVersion cv           = getContractContentVersion(oppId);
             Messaging.SingleEmailMessage email = buildEmail(opp, cv);
             sendEmail(email);
-
         } catch (QueryException e) {
-            throw new AuraHandledException('Error al consultar datos para el envío: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, 'Error al consultar datos: ' + e.getMessage());
         } catch (EmailException e) {
-            throw new AuraHandledException('Error al enviar el contrato por email: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, 'Error al enviar contrato: ' + e.getMessage());
+        } catch (AuraHandledException e) {
+            System.debug(LoggingLevel.ERROR, 'Error de permisos: ' + e.getMessage());
         }
     }
 
@@ -52,7 +59,8 @@ public with sharing class ContractEmail_Queueable implements Queueable {
      * @return Opportunity con Account relacionada
      */
     private Opportunity getOpportunity(Id oppId) {
-        if (!Schema.sObjectType.Opportunity.isAccessible()) {
+        Boolean canAccess = overrideOpportunityAccessible != null ? overrideOpportunityAccessible : Schema.sObjectType.Opportunity.isAccessible();
+        if (!canAccess) {
             throw new AuraHandledException('No tiene permisos para acceder a Opportunity.');
         }
         return [
@@ -70,7 +78,10 @@ public with sharing class ContractEmail_Queueable implements Queueable {
      * @return ContentVersion con el PDF del contrato
      */
     private ContentVersion getContractContentVersion(Id oppId) {
-        if (!Schema.sObjectType.ContentDocumentLink.isAccessible()) {
+        Boolean canAccessCDL = overrideContentDocLinkAccessible != null
+            ? overrideContentDocLinkAccessible
+            : Schema.sObjectType.ContentDocumentLink.isAccessible();
+        if (!canAccessCDL) {
             throw new AuraHandledException('No tiene permisos para acceder al documento.');
         }
         ContentDocumentLink cdl = [
@@ -80,8 +91,10 @@ public with sharing class ContractEmail_Queueable implements Queueable {
             WITH SECURITY_ENFORCED
             ORDER BY SystemModstamp DESC
         ];
-
-        if (!Schema.sObjectType.ContentVersion.isAccessible()) {
+        Boolean canAccessCV = overrideContentVersionAccessible != null
+            ? overrideContentVersionAccessible
+            : Schema.sObjectType.ContentVersion.isAccessible();
+        if (!canAccessCV) {
             throw new AuraHandledException('No tiene permisos para acceder a contenido.');
         }
         return [

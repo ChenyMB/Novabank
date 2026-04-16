@@ -2,26 +2,29 @@
  * @description       : 
  * @author            : ChangeMeIn@UserSettingsUnder.SFDoc
  * @group             : 
- * @last modified on  : 04-14-2026
+ * @last modified on  : 04-16-2026
  * @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
 **/
 public with sharing class Opportunity_Contract_Service {
+    @TestVisible
+    private static Blob overridePdfBlob = null;
+    @TestVisible 
+    private static Boolean overrideContentVersionCreateable = null;
+    @TestVisible 
+    private static Boolean overrideContentVersionAccessible = null;
+    @TestVisible 
+    private static Boolean overrideContentDocumentLinkCreateable = null;
 
     /**
      * Genera el PDF y lo vincula a la Opportunity.
      * @param oppId Id de la Opportunity
      */
     public static void generateAndStoreContract(Id oppId) {
-        try {
-            Blob pdfBlob              = buildPdfBlob(oppId);
-            ContentVersion cv         = buildContentVersion(oppId, pdfBlob);
-            insertContentVersion(cv);
-
-            Id contentDocumentId      = getContentDocumentId(cv.Id);
-            insertContentDocumentLink(oppId, contentDocumentId);
-        } catch (DmlException e) {
-            throw new AuraHandledException('Error al guardar el contrato: ' + e.getMessage());
-        }
+        Blob pdfBlob         = buildPdfBlob(oppId);
+        ContentVersion cv    = buildContentVersion(oppId, pdfBlob);
+        insertContentVersion(cv);
+        Id contentDocumentId = getContentDocumentId(cv.Id);
+        insertContentDocumentLink(oppId, contentDocumentId);
     }
 
     /**
@@ -30,8 +33,12 @@ public with sharing class Opportunity_Contract_Service {
      * @return Blob del PDF generado
      */
     private static Blob buildPdfBlob(Id oppId) {
+        if (overridePdfBlob != null) {
+            return overridePdfBlob;
+        }
         PageReference pdfPage = Page.Opportunity_Contract;
         pdfPage.getParameters().put('id', oppId);
+        pdfPage.getParameters().put('action', 'pdf');
         return pdfPage.getContentAsPDF();
     }
 
@@ -55,11 +62,15 @@ public with sharing class Opportunity_Contract_Service {
      * @param cv ContentVersion a persistir
      */
     private static void insertContentVersion(ContentVersion cv) {
+        if (overrideContentVersionCreateable != null && !overrideContentVersionCreateable) {
+            throw new AuraHandledException('No tiene permisos para crear ContentVersion.');
+        }
         if (!Schema.sObjectType.ContentVersion.isCreateable()) {
             throw new AuraHandledException('No tiene permisos para crear ContentVersion.');
         }
         insert cv;
     }
+
 
     /**
      * Obtiene el ContentDocumentId del ContentVersion recién insertado.
@@ -68,15 +79,12 @@ public with sharing class Opportunity_Contract_Service {
      * @return Id del ContentDocument asociado
      */
     private static Id getContentDocumentId(Id cvId) {
-        if (!Schema.sObjectType.ContentVersion.isAccessible()) {
+        Boolean canAccess = overrideContentVersionAccessible != null ? overrideContentVersionAccessible 
+            : Schema.sObjectType.ContentVersion.isAccessible();
+        if (!canAccess) {
             throw new AuraHandledException('No tiene permisos para acceder a al contenido.');
         }
-        return [
-            SELECT ContentDocumentId
-            FROM ContentVersion
-            WHERE Id = :cvId
-            WITH SECURITY_ENFORCED
-        ].ContentDocumentId;
+        return [SELECT ContentDocumentId FROM ContentVersion WHERE Id = :cvId WITH SECURITY_ENFORCED].ContentDocumentId;
     }
 
     /**
@@ -86,14 +94,17 @@ public with sharing class Opportunity_Contract_Service {
      * @param contentDocumentId Id del ContentDocument a vincular
      */
     private static void insertContentDocumentLink(Id oppId, Id contentDocumentId) {
+        if (overrideContentDocumentLinkCreateable != null && !overrideContentDocumentLinkCreateable) {
+            throw new AuraHandledException('No tiene permisos para crear ContentDocumentLink.');
+        }
         if (!Schema.sObjectType.ContentDocumentLink.isCreateable()) {
             throw new AuraHandledException('No tiene permisos para crear ContentDocumentLink.');
         }
-        ContentDocumentLink cdl  = new ContentDocumentLink();
-        cdl.LinkedEntityId       = oppId;
-        cdl.ContentDocumentId    = contentDocumentId;
-        cdl.ShareType            = 'V';
-        cdl.Visibility           = 'AllUsers';
+        ContentDocumentLink cdl = new ContentDocumentLink();
+        cdl.LinkedEntityId    = oppId;
+        cdl.ContentDocumentId = contentDocumentId;
+        cdl.ShareType         = 'V';
+        cdl.Visibility        = 'AllUsers';
         insert cdl;
     }
 }
