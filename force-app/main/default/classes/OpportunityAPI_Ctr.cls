@@ -1,10 +1,9 @@
 /**
- * @description       : 
- * @author            : ChangeMeIn@UserSettingsUnder.SFDoc
- * @group             : 
- * @last modified on  : 04-14-2026
- * @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
-**/
+ * @description REST API para exponer oportunidades Cerrada-Ganada de un cliente.
+ *              Endpoint: GET /services/apexrest/v1/clientes/{clienteId}/oportunidades-ganadas
+ *              Autenticación: OAuth 2.0 Bearer Token (Client Credentials Flow)
+ * @author      Michelle Moreno
+ * */
 
 @RestResource(urlMapping='/v1/clientes/*/oportunidades-ganadas')
 global with sharing class OpportunityAPI_Ctr {
@@ -95,7 +94,7 @@ global with sharing class OpportunityAPI_Ctr {
             throw new QueryException('No tiene permisos para acceder a Opportunity.');
         }
         return [
-            SELECT Id, Name, Product__c, Amount, RequestedCreditLine__c, InterestRate__c, CloseDate, LeadSource, Owner.Name
+            SELECT Id, Name, Product__c, Product__r.Name, Amount, RequestedCreditLine__c, InterestRate__c, CloseDate, LeadSource, Owner.Name
             FROM Opportunity
             WHERE AccountId      = :accountId
             AND   StageName      = 'Cerrada Ganada'
@@ -140,7 +139,7 @@ global with sharing class OpportunityAPI_Ctr {
     private static OportunidadWrapper buildOportunidadWrapper(Opportunity opp) {
         OportunidadWrapper wrapper  = new OportunidadWrapper();
         wrapper.oportunidadId       = opp.Id;
-        wrapper.producto            = opp.Product__c;
+        wrapper.producto            = opp.Product__r.Name;
         wrapper.montoAprobado       = opp.Amount;
         wrapper.lineaCredito        = opp.RequestedCreditLine__c;
         wrapper.tasaInteres         = opp.InterestRate__c;
