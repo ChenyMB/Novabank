@@ -3,11 +3,11 @@ import getFinancialAccounts from '@salesforce/apex/FinancialAccount_Ctr.getFinan
 import createFinancialAccount from '@salesforce/apex/FinancialAccount_Ctr.createFinancialAccount';
 import updateFinancialAccount from '@salesforce/apex/FinancialAccount_Ctr.updateFinancialAccount';
 import deleteFinancialAccount from '@salesforce/apex/FinancialAccount_Ctr.deleteFinancialAccount';
+import canEditFinancialAccounts from '@salesforce/apex/FinancialAccount_Ctr.canEditFinancialAccounts';
 import { refreshApex } from '@salesforce/apex';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 
 export default class FinancialAccountPanel extends LightningElement {
-
     @api recordId;
     @track financialAccounts = [];
     @track isLoading = true;
@@ -16,6 +16,7 @@ export default class FinancialAccountPanel extends LightningElement {
     @track modalTitle = '';
     @track currentRecord = {};
     @track isEditMode = false;
+    canEdit = false;
 
     wiredResult;
 
@@ -29,6 +30,11 @@ export default class FinancialAccountPanel extends LightningElement {
         { label: 'Bloqueada', value: 'Bloqueada' },
         { label: 'Cancelada', value: 'Cancelada' }
     ];
+
+    @wire(canEditFinancialAccounts)
+    wiredCanEdit({ data }) {
+        if (data !== undefined) this.canEdit = data;
+    }
 
     @wire(getFinancialAccounts, { accountId: '$recordId' })
     wiredAccounts(result) {
@@ -76,7 +82,6 @@ export default class FinancialAccountPanel extends LightningElement {
         const action = this.isEditMode
             ? updateFinancialAccount({ financialAccount: this.currentRecord })
             : createFinancialAccount({ financialAccount: this.currentRecord });
-
         action
             .then(() => {
                 this.showToast('Éxito', 'Cuenta Financiera guardada correctamente.', 'success');

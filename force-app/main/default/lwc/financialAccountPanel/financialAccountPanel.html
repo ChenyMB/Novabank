@@ -2,29 +2,29 @@
   @description       : 
   @author            : ChangeMeIn@UserSettingsUnder.SFDoc
   @group             : 
-  @last modified on  : 04-14-2026
+  @last modified on  : 04-16-2026
   @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
 -->
 <template>
     <lightning-card title="Cuentas Financieras" icon-name="standard:financial_account">
-
         <template if:true={isLoading}>
             <lightning-spinner alternative-text="Cargando..." size="medium"></lightning-spinner>
         </template>
-
         <template if:true={errorMessage}>
             <div class="slds-notify slds-notify_alert slds-alert_error slds-m-around_small">
                 <p>{errorMessage}</p>
             </div>
         </template>
 
-        <div slot="actions">
-            <lightning-button
-                label="Nueva Cuenta Financiera"
-                icon-name="utility:add"
-                onclick={handleNew}>
-            </lightning-button>
-        </div>
+        <template if:true={canEdit}>
+            <div slot="actions">
+                <lightning-button
+                    label="Nueva Cuenta Financiera"
+                    icon-name="utility:add"
+                    onclick={handleNew}>
+                </lightning-button>
+            </div>
+        </template>
 
         <template if:true={hasRecords}>
             <div class="slds-scrollable_x">
@@ -37,7 +37,9 @@
                             <th scope="col"><div class="slds-truncate">Línea Aprobada</div></th>
                             <th scope="col"><div class="slds-truncate">Estado</div></th>
                             <th scope="col"><div class="slds-truncate">Fecha de Emisión</div></th>
-                            <th scope="col"><div class="slds-truncate">Acciones</div></th>
+                            <template if:true={canEdit}>
+                                <th scope="col"><div class="slds-truncate">Acciones</div></th>
+                            </template>
                         </tr>
                     </thead>
                     <tbody>
@@ -49,20 +51,23 @@
                                 <td><div class="slds-truncate">{fa.ApprovedCreditLine__c}</div></td>
                                 <td><div class="slds-truncate">{fa.CardStatus__c}</div></td>
                                 <td><div class="slds-truncate">{fa.IssueDate__c}</div></td>
-                                <td>
-                                    <lightning-button-icon
-                                        icon-name="utility:edit"
-                                        alternative-text="Editar"
-                                        data-id={fa.Id}
-                                        onclick={handleEdit}>
-                                    </lightning-button-icon>
-                                    <lightning-button-icon
-                                        icon-name="utility:delete"
-                                        alternative-text="Eliminar"
-                                        data-id={fa.Id}
-                                        onclick={handleDelete}>
-                                    </lightning-button-icon>
-                                </td>
+                                <!-- Botones Editar/Eliminar — solo Analista -->
+                                <template if:true={canEdit}>
+                                    <td>
+                                        <lightning-button-icon
+                                            icon-name="utility:edit"
+                                            alternative-text="Editar"
+                                            data-id={fa.Id}
+                                            onclick={handleEdit}>
+                                        </lightning-button-icon>
+                                        <lightning-button-icon
+                                            icon-name="utility:delete"
+                                            alternative-text="Eliminar"
+                                            data-id={fa.Id}
+                                            onclick={handleDelete}>
+                                        </lightning-button-icon>
+                                    </td>
+                                </template>
                             </tr>
                         </template>
                     </tbody>
@@ -79,12 +84,11 @@
         <template if:true={showModal}>
             <section role="dialog" class="slds-modal slds-fade-in-open">
                 <div class="slds-modal__container">
-                        <header class="slds-modal__header" style="background-color: #0A2463; border-radius: 4px 4px 0 0;">
-                            <h2 class="slds-modal__title" 
-                                style="color: #ffffff; font-weight: 700;">
-                                {modalTitle}
-                            </h2>
-                        </header>
+                    <header class="slds-modal__header" style="background-color: #0A2463; border-radius: 4px 4px 0 0;">
+                        <h2 class="slds-modal__title" style="color: #ffffff; font-weight: 700;">
+                            {modalTitle}
+                        </h2>
+                    </header>
                     <div class="slds-modal__content slds-p-around_medium">
                         <lightning-input
                             label="Nombre"
@@ -142,6 +146,5 @@
             </section>
             <div class="slds-backdrop slds-backdrop_open"></div>
         </template>
-
     </lightning-card>
 </template>
