@@ -10,44 +10,23 @@ private class ConversionLead_Ctr_Test {
 
     @TestSetup
     static void setupData() {
-        Product2 producto = new Product2(
-            Name                   = 'Visa Oro',
-            IsActive               = true,
-            Card_Type__c           = 'Visa',
-            Card_Category__c       = 'Oro',
-            Minimum_Credit_Line__c = 1000,
-            Maximum_Credit_Line__c = 5000,
-            Interest_Rate__c       = 28.0,
-            Sales_Channel__c       = 'Web'
-        );
-        insert producto;
-
-        Lead lead = new Lead(
-            FirstName              = 'Test',
-            LastName               = 'Lead',
-            Company                = 'NovaBank',
-            Status                 = 'Inicio',
-            MonthlyIncome__c       = 3000,
-            RequestedCreditLine__c = 2000,
-            Product__c             = producto.Id,
-            DocumentType__c        = 'DNI',
-            DocumentNumber__c      = '12345678',
-            BirthDate__c           = Date.newInstance(1990, 1, 1),
-            MaritalStatus__c       = 'Soltero/a',
-            EmploymentStatus__c    = 'Dependiente'
-        );
+        Lead lead = TestDataFactory.createLead(false);
+        lead.DocumentType__c     = 'DNI';
+        lead.DocumentNumber__c   = '12345678';
+        lead.BirthDate__c        = Date.newInstance(1990, 1, 1);
+        lead.MaritalStatus__c    = 'Soltero/a';
+        lead.EmploymentStatus__c = 'Dependiente';
         insert lead;
     }
 
-    /**
-     * Given un Lead no convertido
-     * When se consulta su Opportunity
-     * Then retorna null
-     */
+    private static Lead getTestLead() {
+        return [SELECT Id FROM Lead WHERE LastName = 'Best' LIMIT 1];
+    }
+
     @isTest
     static void givenLeadNotConvertedWhenGetOpportunityThenReturnsNull() {
         // GIVEN
-        Lead lead = [SELECT Id FROM Lead LIMIT 1];
+        Lead lead = getTestLead();
 
         // WHEN
         Test.startTest();
@@ -55,19 +34,13 @@ private class ConversionLead_Ctr_Test {
         Test.stopTest();
 
         // THEN
-        System.assertEquals(null, oppId,
-            'Lead no convertido debe retornar null');
+        System.assertEquals(null, oppId, 'Lead no convertido debe retornar null');
     }
 
-    /**
-     * Given un Lead convertido
-     * When se consulta su Opportunity
-     * Then retorna el Id correcto
-     */
     @isTest
     static void givenLeadConvertedWhenGetOpportunityThenReturnsOppId() {
         // GIVEN
-        Lead lead = [SELECT Id FROM Lead LIMIT 1];
+        Lead lead = getTestLead();
 
         Database.LeadConvert lc = new Database.LeadConvert();
         lc.setLeadId(lead.Id);
@@ -87,28 +60,43 @@ private class ConversionLead_Ctr_Test {
             'El Id retornado debe coincidir con la Opportunity creada');
     }
 
-    /**
-     * Given un Id nulo
-     * When se consulta la Opportunity
-     * Then lanza excepción controlada
-     */
     @isTest
     static void givenNullIdWhenGetOpportunityThenThrowsException() {
         // GIVEN
-        Id nullId = null;
+        Boolean exceptionThrown = false;
 
         // WHEN
         Test.startTest();
         try {
-            ConversionLead_Ctr.getConvertedOpportunityId(nullId);
-
-            // THEN
-            System.assert(false, 'Debió lanzar excepción');
-        } catch (Exception e) {
-
-            // THEN
-            System.assert(true, 'Excepción manejada correctamente');
+            ConversionLead_Ctr.getConvertedOpportunityId(null);
+        } catch (AuraHandledException e) {
+            // THEN: verifica que el mensaje no es nulo
+            exceptionThrown = true;
+            System.assertNotEquals(null, e.getMessage(), 'El mensaje de error no debe ser nulo');
         }
         Test.stopTest();
+
+        System.assert(exceptionThrown, 'Debió lanzar AuraHandledException con Id nulo');
+    }
+
+    @isTest
+    static void givenNoAccessWhenGetOpportunityThenThrowsPermissionException() {
+        // GIVEN
+        User noAccess = TestDataFactory.buildUserNoAccess('noaccess.lead@novabank.test.com');
+        insert noAccess;
+        Lead lead = getTestLead();
+
+        System.runAs(noAccess) {
+            // WHEN
+            Test.startTest();
+            try {
+                ConversionLead_Ctr.getConvertedOpportunityId(lead.Id);
+                System.assert(false, 'Debió lanzar excepción de permisos');
+            } catch (AuraHandledException e) {
+                // THEN
+                System.assertNotEquals(null, e.getMessage(), 'Debe haber mensaje de error de permisos');
+            }
+            Test.stopTest();
+        }
     }
 }

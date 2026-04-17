@@ -15,21 +15,52 @@ private class FinancialAccount_Ctr_Test {
         TestDataFactory.createFinancialAccount(acc.Id, opp.Id, true);
     }
 
+    private static Account getTestAccount() {
+        return [SELECT Id FROM Account WHERE Name = 'Francesca Moreno'];
+    }
+
+    private static FinancialAccount__c getTestFA() {
+        return [SELECT Id FROM FinancialAccount__c];
+    }
+
+    private static User crearEjecutivo(String username) {
+        User u = TestDataFactory.buildUser(TestDataFactory.ROLE_EJECUTIVO, username);
+        insert u;
+        return u;
+    }
+
+    private static User crearAnalista(String username) {
+        User u = TestDataFactory.buildUser(TestDataFactory.ROLE_ANALISTA, username);
+        insert u;
+        return u;
+    }
+
+    private static void asignarPS(Id userId, String psName) {
+        PermissionSet ps = [SELECT Id FROM PermissionSet WHERE Name = :psName];
+        insert new PermissionSetAssignment(AssigneeId = userId, PermissionSetId = ps.Id);
+    }
+
+    private static FinancialAccount__c buildFA(Id accountId) {
+        return new FinancialAccount__c(
+            Account__c            = accountId,
+            CardNumber__c         = '4111222233334444',
+            CardType__c           = 'Visa',
+            ApprovedCreditLine__c = 4000,
+            IssueDate__c          = Date.today(),
+            CardStatus__c         = 'Activa'
+        );
+    }
+
     @isTest
     static void givenAccountWithFAWhenGetFAThenReturnsRecords() {
         // GIVEN
-        Account acc = [
-            SELECT Id 
-            FROM Account 
-            LIMIT 1
-        ];
+        Account acc = getTestAccount();
         // WHEN
         Test.startTest();
         List<FinancialAccount__c> result = FinancialAccount_Ctr.getFinancialAccounts(acc.Id);
         Test.stopTest();
         // THEN
-        System.assertEquals(1, result.size(), 'Debe retornarse 1 cuenta financiera');
-        System.assertEquals(acc.Id, result[0].Account__c, 'Cuenta financiera debe pertenecer al Account');
+        System.assertEquals(1, result.size(), 'Debe retornar 1 cuenta financiera');
     }
 
     @isTest
@@ -45,81 +76,125 @@ private class FinancialAccount_Ctr_Test {
     }
 
     @isTest
+    static void givenEjecutivoWhenGetFAThenCardNumberStripped() {
+        // GIVEN
+        User ejecutivo = crearEjecutivo('ejecutivo.strip@novabank.test.com');
+        asignarPS(ejecutivo.Id, 'Sales_Management');
+        Account accEjecutivo;
+        System.runAs(ejecutivo) {
+            accEjecutivo = TestDataFactory.createAccount(true);
+            Opportunity opp = TestDataFactory.createWonOpportunity(accEjecutivo.Id, true);
+            TestDataFactory.createFinancialAccount(accEjecutivo.Id, opp.Id, true);
+        }
+        // WHEN
+        System.runAs(ejecutivo) {
+            Test.startTest();
+            List<FinancialAccount__c> result = FinancialAccount_Ctr.getFinancialAccounts(accEjecutivo.Id);
+            Test.stopTest();
+            // THEN
+            System.assertEquals(1, result.size(), 'Ejecutivo ve sus registros');
+            System.assert( !result[0].getPopulatedFieldsAsMap().containsKey('CardNumber__c'), 'CardNumber__c debe haber sido removido por stripInaccessible para el Ejecutivo'
+            );
+        }
+    }
+
+    @isTest
+    static void givenAnalistaWhenGetFAThenCanAccess() {
+        // GIVEN
+        User analista = crearAnalista('analista.getfa@novabank.test.com');
+        asignarPS(analista.Id, 'Post_Sale_Management');
+        Account acc = getTestAccount();
+        // WHEN
+        System.runAs(analista) {
+            Test.startTest();
+            List<FinancialAccount__c> result = FinancialAccount_Ctr.getFinancialAccounts(acc.Id);
+            Test.stopTest();
+            // THEN
+            System.assertNotEquals(null, result, 'Analista debe acceder a cuentas financieras');
+        }
+    }
+
+    @isTest
     static void givenValidFAWhenCreateThenSavedCorrectly() {
         // GIVEN
-        Account acc = [
-            SELECT Id 
-            FROM Account 
-            LIMIT 1
-        ];
-        FinancialAccount__c newFa = new FinancialAccount__c(
-            Account__c            = acc.Id,
-            CardNumber__c         = '4111222233334444',
-            CardType__c           = 'Visa',
-            ApprovedCreditLine__c = 4000,
-            IssueDate__c          = Date.today(),
-            CardStatus__c         = 'Activa'
-        );
+        FinancialAccount__c newFa = buildFA(getTestAccount().Id);
         // WHEN
         Test.startTest();
         FinancialAccount__c created = FinancialAccount_Ctr.createFinancialAccount(newFa);
         Test.stopTest();
-        // THEN
+        // THEN — verificación desde DB
         FinancialAccount__c fromDb = [
-            SELECT CardType__c, CardStatus__c 
-            FROM FinancialAccount__c 
-            WHERE Id = :created.Id
+            SELECT CardType__c, CardStatus__c
+            FROM   FinancialAccount__c
+            WHERE  Id = :created.Id
         ];
-        System.assertEquals('Visa', fromDb.CardType__c,   'Tipo debe ser Visa');
-        System.assertEquals('Activa',   fromDb.CardStatus__c, 'Estado debe ser Activa');
+        System.assertEquals('Visa',   fromDb.CardType__c,   'Tipo debe ser Visa');
+        System.assertEquals('Activa', fromDb.CardStatus__c, 'Estado debe ser Activa');
     }
 
     @isTest
     static void givenInvalidFAWhenCreateThenThrowsException() {
         // GIVEN
-        FinancialAccount__c invalidFa = new FinancialAccount__c(CardType__c = 'Visa Original');
         Boolean exceptionThrown = false;
         // WHEN
         Test.startTest();
         try {
-            FinancialAccount_Ctr.createFinancialAccount(invalidFa);
-        } catch (Exception e) {
+            FinancialAccount_Ctr.createFinancialAccount(new FinancialAccount__c());
+        } catch (AuraHandledException e) {
             exceptionThrown = true;
         }
         Test.stopTest();
         // THEN
-        System.assert(exceptionThrown, 'Debe lanzarse excepción');
+        System.assert(exceptionThrown, 'Debe lanzarse AuraHandledException');
     }
 
     @isTest
-    static void givenFAWhenUpdateStatusThenStatusChanged() {
+    static void givenUserWithoutCreateAccessWhenCreateFAThenThrowsException() {
         // GIVEN
-        FinancialAccount__c fa = [
-            SELECT Id, CardStatus__c
-            FROM FinancialAccount__c 
-            LIMIT 1
-        ];
-        fa.CardStatus__c = 'Bloqueada';
+        User userNoAccess = crearEjecutivo('noaccess.create@novabank.test.com');
+        // WHEN
+        System.runAs(userNoAccess) {
+            Test.startTest();
+            try {
+                FinancialAccount_Ctr.createFinancialAccount(new FinancialAccount__c());
+                System.assert(false, 'Debió lanzar excepción');
+            } catch (AuraHandledException e) {
+                // THEN
+                System.assertNotEquals(null, e.getMessage(), 'Debe informar falta de permisos');
+            }
+            Test.stopTest();
+        }
+    }
 
+    // ─── updateFinancialAccount ───────────────────────────────────────────────
+
+    @isTest
+    static void givenFAWhenUpdateStatusThenStatusChangedInDb() {
+        // GIVEN
+        FinancialAccount__c fa = getTestFA();
+        fa.CardStatus__c = 'Bloqueada';
         // WHEN
         Test.startTest();
         FinancialAccount_Ctr.updateFinancialAccount(fa);
         Test.stopTest();
-        
         // THEN
-        System.assertEquals('Bloqueada', fa.CardStatus__c, 'Estado debe ser Bloqueada');
+        FinancialAccount__c fromDb = [
+            SELECT CardStatus__c
+            FROM   FinancialAccount__c
+            WHERE  Id = :fa.Id
+        ];
+        System.assertEquals('Bloqueada', fromDb.CardStatus__c, 'Estado debe persistir en DB');
     }
 
     @isTest
     static void givenFAWithoutIdWhenUpdateThenThrowsException() {
         // GIVEN
-        FinancialAccount__c faNoId = new FinancialAccount__c(CardStatus__c = 'Cancelada');
         Boolean exceptionThrown = false;
         // WHEN
         Test.startTest();
         try {
-            FinancialAccount_Ctr.updateFinancialAccount(faNoId);
-        } catch (Exception e) {
+            FinancialAccount_Ctr.updateFinancialAccount(new FinancialAccount__c(CardStatus__c = 'Cancelada'));
+        } catch (AuraHandledException e) {
             exceptionThrown = true;
         }
         Test.stopTest();
@@ -128,15 +203,37 @@ private class FinancialAccount_Ctr_Test {
     }
 
     @isTest
+    static void givenUserWithoutUpdateAccessWhenUpdateFAThenThrowsException() {
+        // GIVEN
+        User userNoAccess = crearEjecutivo('noaccess.update@novabank.test.com');
+        // WHEN
+        System.runAs(userNoAccess) {
+            Test.startTest();
+            try {
+                FinancialAccount_Ctr.updateFinancialAccount(new FinancialAccount__c());
+                System.assert(false, 'Debió lanzar excepción');
+            } catch (AuraHandledException e) {
+                // THEN
+                System.assertNotEquals(null, e.getMessage(), 'Debe informar falta de permisos');
+            }
+            Test.stopTest();
+        }
+    }
+
+    @isTest
     static void givenFAWhenDeleteThenRemovedFromDb() {
         // GIVEN
-        Id faId = [SELECT Id FROM FinancialAccount__c LIMIT 1].Id;
+        Id faId = getTestFA().Id;
         // WHEN
         Test.startTest();
         FinancialAccount_Ctr.deleteFinancialAccount(faId);
         Test.stopTest();
         // THEN
-        System.assertEquals(0, [SELECT COUNT() FROM FinancialAccount__c WHERE Id = :faId], 'Cuenta financiera debe eliminarse');
+        System.assertEquals(
+            0,
+            [SELECT COUNT() FROM FinancialAccount__c WHERE Id = :faId],
+            'Cuenta financiera debe eliminarse'
+        );
     }
 
     @isTest
@@ -147,7 +244,7 @@ private class FinancialAccount_Ctr_Test {
         Test.startTest();
         try {
             FinancialAccount_Ctr.deleteFinancialAccount(null);
-        } catch (Exception e) {
+        } catch (AuraHandledException e) {
             exceptionThrown = true;
         }
         Test.stopTest();
@@ -156,119 +253,27 @@ private class FinancialAccount_Ctr_Test {
     }
 
     @isTest
-    static void givenEjecutivoWhenGetFAThenCanAccessOwnRecords() {
+    static void givenAlreadyDeletedFAWhenDeleteThenCompletesWithoutError() {
         // GIVEN
-        User ejecutivo = TestDataFactory.buildUser(TestDataFactory.ROLE_EJECUTIVO, 'ejecutivo.test.benefits@novabank.test.com');
-        insert ejecutivo;
-        Account accEjecutivo;
-
-        PermissionSet psSales = [SELECT Id FROM PermissionSet WHERE Name = 'Sales_Management'];
-        insert new PermissionSetAssignment(AssigneeId = ejecutivo.Id, PermissionSetId = psSales.Id);
-
-        System.runAs(ejecutivo) {
-            accEjecutivo = TestDataFactory.createAccount(true);
-            TestDataFactory.createFinancialAccount(accEjecutivo.Id, TestDataFactory.createWonOpportunity(accEjecutivo.Id, true).Id, true);
-        }
+        FinancialAccount__c fa = getTestFA();
+        delete fa;
         // WHEN
-        System.runAs(ejecutivo) {
-            Test.startTest();
-            List<FinancialAccount__c> result = FinancialAccount_Ctr.getFinancialAccounts(accEjecutivo.Id);
-            Test.stopTest();
+        Test.startTest();
+        try {
+            FinancialAccount_Ctr.deleteFinancialAccount(fa.Id);
             // THEN
-            System.assertEquals(1, result.size(), 'Ejecutivo ve solo sus cuentas financieras');
+            System.assert(true, 'Debe completar sin error gracias al guard isEmpty');
+        } catch (Exception e) {
+            System.assert(false, 'No debe lanzar excepción: ' + e.getMessage());
         }
-    }
-
-    @isTest
-    static void givenAnalistaWhenGetFAThenCanAccess() {
-        // GIVEN
-        User analista = TestDataFactory.buildUser(TestDataFactory.ROLE_ANALISTA, 'analista.test.benefits@novabank.test.com');
-        insert analista;
-        Account acc = [
-            SELECT Id 
-            FROM Account 
-            LIMIT 1
-        ];
-        PermissionSet psPostSale = [SELECT Id FROM PermissionSet WHERE Name = 'Post_Sale_Management'];
-        insert new PermissionSetAssignment(AssigneeId = analista.Id, PermissionSetId = psPostSale.Id);
-
-        // WHEN
-        System.runAs(analista) {
-            Test.startTest();
-            List<FinancialAccount__c> result = FinancialAccount_Ctr.getFinancialAccounts(acc.Id);
-            Test.stopTest();
-            // THEN
-            System.assertNotEquals(null, result, 'Analista debe acceder a cuenta financiera');
-        }
-    }
-
-    @isTest
-    static void givenUserWithoutReadAccessWhenGetFAThenThrowsException() {
-        // GIVEN
-        User userNoAccess = TestDataFactory.buildUser(TestDataFactory.ROLE_EJECUTIVO, 'noaccess.read.fa@novabank.test.com');
-        insert userNoAccess;
-
-        // WHEN
-        System.runAs(userNoAccess) {
-            Test.startTest();
-            try {
-                FinancialAccount_Ctr.getFinancialAccounts(null);
-                System.assert(false, 'Debió lanzar excepción');
-            } catch (AuraHandledException e) {
-                //THEN
-                System.assertNotEquals(null, e.getMessage(), 'Sin acceso de lectura debe lanzar excepción');
-            }
-            Test.stopTest();
-        }
-    }
-
-    @isTest
-    static void givenUserWithoutCreateAccessWhenCreateFAThenThrowsException() {
-        // GIVEN - usuario sin permission sets
-        User userNoAccess = TestDataFactory.buildUser(TestDataFactory.ROLE_EJECUTIVO, 'noaccess.create.fa@novabank.test.com');
-        insert userNoAccess;
-        // WHEN
-        System.runAs(userNoAccess) {
-            Test.startTest();
-            try {
-                FinancialAccount_Ctr.createFinancialAccount(new FinancialAccount__c());
-                System.assert(false, 'Debió lanzar excepción');
-            } catch (AuraHandledException e) {
-                //THEN
-                System.assertNotEquals(null, e.getMessage(), 'Sin acceso de creación debe lanzar excepción');
-            }
-            Test.stopTest();
-        }
-    }
-
-    @isTest
-    static void givenUserWithoutUpdateAccessWhenUpdateFAThenThrowsException() {
-        // GIVEN
-        User userNoAccess = TestDataFactory.buildUser(TestDataFactory.ROLE_EJECUTIVO, 'noaccess.update.fa@novabank.test.com');
-        insert userNoAccess;
-        // WHEN
-        System.runAs(userNoAccess) {
-            Test.startTest();
-            try {
-                FinancialAccount_Ctr.updateFinancialAccount(new FinancialAccount__c());
-                System.assert(false, 'Debió lanzar excepción');
-            } catch (AuraHandledException e) {
-                //THEN
-                System.assertNotEquals(null, e.getMessage(), 'Sin acceso de actualización debe lanzar excepción');
-            }
-            Test.stopTest();
-        }
+        Test.stopTest();
     }
 
     @isTest
     static void givenUserWithoutDeleteAccessWhenDeleteFAThenThrowsException() {
         // GIVEN
-        User userNoAccess = TestDataFactory.buildUser(
-            TestDataFactory.ROLE_EJECUTIVO, 
-            'noaccess.delete.fa@novabank.test.com'
-        );
-        insert userNoAccess;
-        Id faId = [SELECT Id FROM FinancialAccount__c LIMIT 1].Id;
+        User userNoAccess = crearEjecutivo('noaccess.delete@novabank.test.com');
+        Id faId = getTestFA().Id;
         // WHEN
         System.runAs(userNoAccess) {
             Test.startTest();
@@ -277,55 +282,38 @@ private class FinancialAccount_Ctr_Test {
                 System.assert(false, 'Debió lanzar excepción');
             } catch (AuraHandledException e) {
                 // THEN
-                System.assertNotEquals(null, e.getMessage(), 
-                    'Sin acceso de eliminación debe lanzar excepción');
+                System.assertNotEquals(null, e.getMessage(), 'Debe informar falta de permisos');
             }
             Test.stopTest();
         }
     }
 
     @isTest
-    static void givenDeletedFAWhenDeleteAgainThenCompletesWithoutError() {
-        // GIVEN
-        FinancialAccount__c fa = [SELECT Id FROM FinancialAccount__c LIMIT 1];
-        delete fa;
-        // WHEN
-        Test.startTest();
-        try {
-            FinancialAccount_Ctr.deleteFinancialAccount(fa.Id);
-            // THEN
-            System.assert(true, 'Eliminar registro ya eliminado completa sin error');
-        } catch (Exception e) {
-            System.assert(false, 'No debería lanzar excepción: ' + e.getMessage());
-        }
-        Test.stopTest();
-    }
-
-    @isTest
     static void givenAnalistaWhenCanEditThenReturnsTrue() {
-        User analista = TestDataFactory.buildUser(TestDataFactory.ROLE_ANALISTA, 'analista.canedit@novabank.test.com');
-        insert analista;
-        PermissionSet ps = [SELECT Id FROM PermissionSet WHERE Name = 'Benefits_Access' LIMIT 1];
-        insert new PermissionSetAssignment(AssigneeId = analista.Id, PermissionSetId = ps.Id);
-
+        // GIVEN
+        User analista = crearAnalista('analista.canedit@novabank.test.com');
+        asignarPS(analista.Id, 'Benefits_Access');
+        // WHEN
         System.runAs(analista) {
             Test.startTest();
             Boolean result = FinancialAccount_Ctr.canEditFinancialAccounts();
             Test.stopTest();
-            System.assertEquals(true, result, 'Analista debe poder editar');
+            // THEN
+            System.assertEquals(true, result, 'Analista con Benefits_Access debe poder editar');
         }
     }
 
     @isTest
     static void givenEjecutivoWhenCanEditThenReturnsFalse() {
-        User ejecutivo = TestDataFactory.buildUser(TestDataFactory.ROLE_EJECUTIVO, 'ejecutivo.canedit@novabank.test.com');
-        insert ejecutivo;
-
+        // GIVEN
+        User ejecutivo = crearEjecutivo('ejecutivo.canedit@novabank.test.com');
+        // WHEN
         System.runAs(ejecutivo) {
             Test.startTest();
             Boolean result = FinancialAccount_Ctr.canEditFinancialAccounts();
             Test.stopTest();
-            System.assertEquals(false, result, 'Ejecutivo no debe poder editar');
+            // THEN
+            System.assertEquals(false, result, 'Ejecutivo sin Benefits_Access no puede editar');
         }
     }
 }

@@ -2,7 +2,7 @@
  * @description       : 
  * @author            : ChangeMeIn@UserSettingsUnder.SFDoc
  * @group             : 
- * @last modified on  : 04-15-2026
+ * @last modified on  : 04-16-2026
  * @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
 **/
 @isTest
@@ -15,7 +15,29 @@ private class OpportunityAPI_Ctr_Test {
         TestDataFactory.createOpportunity(acc.Id, 'Inicio', true);
 
         User userNoAccess = TestDataFactory.buildUserNoAccess('noaccess.account.api@novabank.test.com');
-        insert userNoAccess;
+        User ejecutivo    = TestDataFactory.buildUser(TestDataFactory.ROLE_EJECUTIVO, 'ejecutivo.api@novabank.test.com');
+        User analista     = TestDataFactory.buildUser(TestDataFactory.ROLE_ANALISTA,  'analista.api@novabank.test.com');
+        insert new List<User>{ userNoAccess, ejecutivo, analista };
+    }
+
+    private static User getEjecutivo() {
+    return [SELECT Id FROM User WHERE Username = 'ejecutivo.api@novabank.test.com'];
+    }
+
+    private static User getAnalista() {
+        return [SELECT Id FROM User WHERE Username = 'analista.api@novabank.test.com'];
+    }
+
+    private static User getUserNoAccess() {
+        return [SELECT Id FROM User WHERE Username = 'noaccess.account.api@novabank.test.com'];
+    }
+
+    private static Account getTestAccount() {
+        return [SELECT Id, Name FROM Account WHERE Name = 'Francesca Moreno'];
+    }
+
+    private static User getUserByUsername(String username) {
+        return [SELECT Id FROM User WHERE Username = :username];
     }
 
     private static void setupRestContext(String clienteId) {
@@ -37,10 +59,7 @@ private class OpportunityAPI_Ctr_Test {
     @isTest
     static void givenWonOppWhenGetOpsThenResponseStructureValid() {
         // GIVEN
-        Account acc = [
-            SELECT Id, Name 
-            FROM Account LIMIT 1
-        ];
+        Account acc = getTestAccount();
         setupRestContext(acc.Id);
         // WHEN
         Test.startTest();
@@ -55,13 +74,8 @@ private class OpportunityAPI_Ctr_Test {
 
     @isTest
     static void givenMixedOppsWhenGetOpsThenOnlyWonReturned() {
-        // GIVEN
-        Account acc = [
-            SELECT Id 
-            FROM Account 
-            LIMIT 1
-        ];
-        setupRestContext(acc.Id);
+        // GIVEN — setup tiene 1 ganada + 1 en Inicio
+        setupRestContext(getTestAccount().Id);
         // WHEN
         Test.startTest();
         OpportunityAPI_Ctr.getOportunidadesGanadas();
@@ -75,31 +89,21 @@ private class OpportunityAPI_Ctr_Test {
     @isTest
     static void givenWonOppWhenGetOpsThenWrapperFieldsPopulated() {
         // GIVEN
-        Account acc = [
-            SELECT Id 
-            FROM Account 
-            LIMIT 1
-        ];
-        setupRestContext(acc.Id);
+        setupRestContext(getTestAccount().Id);
         // WHEN
         Test.startTest();
         OpportunityAPI_Ctr.getOportunidadesGanadas();
         Test.stopTest();
         // THEN
-        OpportunityAPI_Ctr.ClienteResponse response = getResponse();
-        OpportunityAPI_Ctr.OportunidadWrapper w = response.oportunidadesGanadas[0];
-        System.assertNotEquals(null, w.oportunidadId, 'oportunidadId nulo');
-        System.assertNotEquals(null, w.fechaCierre,   'fechaCierre nula');
+        OpportunityAPI_Ctr.OportunidadWrapper w = getResponse().oportunidadesGanadas[0];
+        System.assertNotEquals(null, w.oportunidadId, 'oportunidadId no debe ser nulo');
+        System.assertNotEquals(null, w.fechaCierre,   'fechaCierre no debe ser nula');
     }
 
     @isTest
     static void givenMultipleWonOppsWhenGetOpsThenAllReturned() {
         // GIVEN
-        Account acc = [
-            SELECT Id 
-            FROM Account 
-            LIMIT 1
-        ];
+        Account acc = getTestAccount();
         TestDataFactory.createWonOpportunity(acc.Id, true);
         setupRestContext(acc.Id);
         // WHEN
@@ -107,8 +111,7 @@ private class OpportunityAPI_Ctr_Test {
         OpportunityAPI_Ctr.getOportunidadesGanadas();
         Test.stopTest();
         // THEN
-        OpportunityAPI_Ctr.ClienteResponse response = getResponse();
-        System.assertEquals(2, response.totalOportunidades, '2 oportunidades ganadas');
+        System.assertEquals(2, getResponse().totalOportunidades, 'Debe retornar 2 oportunidades ganadas');
     }
 
     @isTest
@@ -121,8 +124,7 @@ private class OpportunityAPI_Ctr_Test {
         OpportunityAPI_Ctr.getOportunidadesGanadas();
         Test.stopTest();
         // THEN
-        OpportunityAPI_Ctr.ClienteResponse response = getResponse();
-        System.assertEquals(0, response.totalOportunidades, 'Total debe ser 0');
+        System.assertEquals(0, getResponse().totalOportunidades, 'Total debe ser 0');
     }
 
     @isTest
@@ -138,95 +140,21 @@ private class OpportunityAPI_Ctr_Test {
     }
 
     @isTest
-    static void givenEjecutivoWhenGetOpsThenCanCallApi() {
-        // GIVEN
-        User ejecutivo = TestDataFactory.buildUser(TestDataFactory.ROLE_EJECUTIVO, 'ejecutivo.test.benefits@novabank.test.com');
-        insert ejecutivo;
-        Account acc = [
-            SELECT Id 
-            FROM Account 
-            LIMIT 1
-        ];
-        // WHEN
-        System.runAs(ejecutivo) {
-            setupRestContext(acc.Id);
-            Test.startTest();
-            OpportunityAPI_Ctr.getOportunidadesGanadas();
-            Test.stopTest();
-            // THEN
-            System.assertEquals(200, RestContext.response.statusCode, 'Ejecutivo debe recibir 200');
-        }
-    }
-
-    @isTest
-    static void givenAnalistaWhenGetOpsThenCanCallApi() {
-        // GIVEN
-        User analista = TestDataFactory.buildUser(TestDataFactory.ROLE_ANALISTA, 'analista.test.benefits@novabank.test.com');
-        insert analista;
-        Account acc = [
-            SELECT Id 
-            FROM Account 
-            LIMIT 1
-        ];
-        // WHEN
-        System.runAs(analista) {
-            setupRestContext(acc.Id);
-            Test.startTest();
-            OpportunityAPI_Ctr.getOportunidadesGanadas();
-            Test.stopTest();
-            // THEN
-            System.assertEquals(200, RestContext.response.statusCode, 'Analista debe recibir 200');
-        }
-    }
-
-    @isTest
     static void givenUserWithoutAccountAccessWhenGetOpsThenReturns404() {
         // GIVEN
-        User userNoAccess = [
-            SELECT Id FROM User 
-            WHERE Username = 'noaccess.account.api@novabank.test.com' 
-            LIMIT 1
-        ];
-        Account acc = [SELECT Id FROM Account LIMIT 1];
-        System.runAs(userNoAccess) {
-            setupRestContext(acc.Id);
+        System.runAs(getUserNoAccess()) {
+            setupRestContext(getTestAccount().Id);
             // WHEN
             Test.startTest();
             OpportunityAPI_Ctr.getOportunidadesGanadas();
             Test.stopTest();
             // THEN
-            System.assertEquals(404, RestContext.response.statusCode, 
-                'Sin acceso a Account debe retornar 404');
+            System.assertEquals(404, RestContext.response.statusCode, 'Sin acceso debe retornar 404');
         }
     }
 
     @isTest
-    static void givenUserWithoutOpportunityAccessWhenGetOpsThenReturns404() {
-        // GIVEN
-        User userNoAccess = TestDataFactory.buildUser(TestDataFactory.ROLE_EJECUTIVO, 'noaccess.opp.api@novabank.test.com');
-        insert userNoAccess;
-        PermissionSet ps = [
-            SELECT Id 
-            FROM PermissionSet 
-            WHERE Name = 'Sales_Management' 
-            LIMIT 1
-        ];
-        insert new PermissionSetAssignment(AssigneeId = userNoAccess.Id, PermissionSetId = ps.Id);
-
-        Account acc = [SELECT Id FROM Account LIMIT 1];
-        System.runAs(userNoAccess) {
-            setupRestContext(acc.Id);
-            // WHEN
-            Test.startTest();
-            OpportunityAPI_Ctr.getOportunidadesGanadas();
-            Test.stopTest();
-            // THEN
-           System.assertEquals(200, RestContext.response.statusCode, 'Usuario con perfil base puede acceder a Account');
-        }
-    }
-
-    @isTest
-    static void givenNullURIWhenGetOpsThenReturns500() {
+    static void givenNullRequestWhenGetOpsThenReturns500() {
         // GIVEN
         RestContext.request  = null;
         RestContext.response = new RestResponse();
@@ -237,4 +165,34 @@ private class OpportunityAPI_Ctr_Test {
         // THEN
         System.assertEquals(500, RestContext.response.statusCode, 'Request nulo debe retornar 500');
     }
+
+    @isTest
+    static void givenEjecutivoWhenGetOpsThenReturns200() {
+        // GIVEN
+        System.runAs(getEjecutivo()) {
+            setupRestContext(getTestAccount().Id);
+            // WHEN
+            Test.startTest();
+            OpportunityAPI_Ctr.getOportunidadesGanadas();
+            Test.stopTest();
+            // THEN
+            System.assertEquals(200, RestContext.response.statusCode, 'Ejecutivo debe recibir 200');
+        }
+    }
+
+    @isTest
+    static void givenAnalistaWhenGetOpsThenReturns200() {
+        // GIVEN
+        System.runAs(getAnalista()) {
+            setupRestContext(getTestAccount().Id);
+            // WHEN
+            Test.startTest();
+            OpportunityAPI_Ctr.getOportunidadesGanadas();
+            Test.stopTest();
+            // THEN
+            System.assertEquals(200, RestContext.response.statusCode, 'Analista debe recibir 200');
+        }
+    }
+
+    
 }

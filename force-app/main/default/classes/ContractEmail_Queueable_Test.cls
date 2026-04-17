@@ -2,7 +2,7 @@
  * @description       : 
  * @author            : ChangeMeIn@UserSettingsUnder.SFDoc
  * @group             : 
- * @last modified on  : 04-15-2026
+ * @last modified on  : 04-16-2026
  * @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
 **/
 @isTest
@@ -10,23 +10,45 @@ private class ContractEmail_Queueable_Test {
 
     @TestSetup
     static void setupData() {
+        User ejecutivo = TestDataFactory.buildUser( TestDataFactory.ROLE_EJECUTIVO, 'ejecutivo.contract@novabank.test.com');
+        User analista = TestDataFactory.buildUser( TestDataFactory.ROLE_ANALISTA, 'analista.contract@novabank.test.com');
+        User noAccess = TestDataFactory.buildUserNoAccess( 'noaccess.contract@novabank.test.com');
+        insert new List<User>{ ejecutivo, analista, noAccess };
+    }
+
+    private static void insertContractData() {
         Account acc = TestDataFactory.createAccount(true);
         Opportunity opp = TestDataFactory.createOpportunity(acc.Id, 'Contrato', true);
         TestDataFactory.createContentVersion(opp.Id, true);
     }
 
+    private static Opportunity getTestOpportunity() {
+        return [SELECT Id FROM Opportunity WHERE Name = 'Opp Test NovaBank' LIMIT 1];
+    }
+
+    private static User getEjecutivo() {
+        return [SELECT Id FROM User WHERE Username = 'ejecutivo.contract@novabank.test.com'];
+    }
+
+    private static User getAnalista() {
+        return [SELECT Id FROM User WHERE Username = 'analista.contract@novabank.test.com'];
+    }
+
+    private static User getNoAccessUser() {
+        return [SELECT Id FROM User WHERE Username = 'noaccess.contract@novabank.test.com'];
+    }
+
     @isTest
     static void givenOppWithContractWhenEnqueueThenJobCreated() {
         // GIVEN
-        Opportunity opp = [
-            SELECT Id 
-            FROM Opportunity 
-            LIMIT 1
-            ];
+        insertContractData();
+        Opportunity opp = getTestOpportunity();
+
         // WHEN
         Test.startTest();
         Id jobId = System.enqueueJob(new ContractEmail_Queueable(opp.Id));
         Test.stopTest();
+
         // THEN
         System.assertNotEquals(null, jobId, 'Job debe retornar Id válido');
     }
@@ -34,17 +56,20 @@ private class ContractEmail_Queueable_Test {
     @isTest
     static void givenOppWithContractWhenEnqueueThenJobRegistered() {
         // GIVEN
-        Opportunity opp = [
-            SELECT Id 
-            FROM Opportunity 
-            LIMIT 1
-        ];
+        insertContractData();
+        Opportunity opp = getTestOpportunity();
+
         // WHEN
         Test.startTest();
         Id jobId = System.enqueueJob(new ContractEmail_Queueable(opp.Id));
         Test.stopTest();
-        // THEN
-        AsyncApexJob job = [SELECT ApexClass.Name, Status FROM AsyncApexJob WHERE Id = :jobId];
+
+        // THEN — Id es único: sin LIMIT
+        AsyncApexJob job = [
+            SELECT ApexClass.Name, Status
+            FROM   AsyncApexJob
+            WHERE  Id = :jobId
+        ];
         System.assertEquals('ContractEmail_Queueable', job.ApexClass.Name, 'Clase del job incorrecta');
         System.assert(
             job.Status == 'Completed' || job.Status == 'Queued' || job.Status == 'Processing',
@@ -55,92 +80,83 @@ private class ContractEmail_Queueable_Test {
     @isTest
     static void givenOppIdWhenInvokeThenJobEnqueued() {
         // GIVEN
-        Opportunity opp = [
-            SELECT Id 
-            FROM Opportunity 
-            LIMIT 1
-        ];
+        insertContractData();
+        Opportunity opp = getTestOpportunity();
+
         // WHEN
         Test.startTest();
         ContractEmail_Queueable.invoke(new List<Id>{ opp.Id });
         Test.stopTest();
+
         // THEN
-        List<AsyncApexJob> jobs = [SELECT Id FROM AsyncApexJob WHERE ApexClass.Name = 'ContractEmail_Queueable'];
+        List<AsyncApexJob> jobs = [
+            SELECT Id
+            FROM   AsyncApexJob
+            WHERE  ApexClass.Name = 'ContractEmail_Queueable'
+        ];
         System.assert(jobs.size() >= 1, 'Debe encolarse al menos 1 job');
     }
 
     @isTest
     static void givenEmptyListWhenInvokeThenNoException() {
-        // GIVEN
-        Boolean noException = true;
-        // WHEN
+        // GIVEN / WHEN
         Test.startTest();
         try {
             ContractEmail_Queueable.invoke(new List<Id>());
+            // THEN
+            System.assert(true, 'Lista vacía no debe lanzar excepción');
         } catch (Exception e) {
-            noException = false;
+            System.assert(false, 'No debió lanzar excepción: ' + e.getMessage());
         }
         Test.stopTest();
-        // THEN
-        System.assert(noException, 'Lista vacía no debe lanzar excepción');
     }
 
-
     @isTest
-    static void givenNullOppIdWhenEnqueueThenHandled() {
-        // GIVEN
-        Boolean handled = false;
-        // WHEN
+    static void givenNullOppIdWhenEnqueueThenHandledGracefully() {
+        // GIVEN / WHEN
         Test.startTest();
-        try {
-            System.enqueueJob(new ContractEmail_Queueable(null));
-            handled = true;
-        } catch (Exception e) {
-            handled = true;
-        }
+        Id jobId = System.enqueueJob(new ContractEmail_Queueable(null));
         Test.stopTest();
-        // THEN
-        System.assert(handled, 'OpportunityId nulo debe manejarse sin error crítico');
-    }
 
-    @isTest
-    static void givenOppWithoutContractWhenEnqueueThenHandled() {
-        // GIVEN
-        Account acc = [
-            SELECT Id 
-            FROM Account 
-            LIMIT 1
+        // THEN: job se encola y ejecuta sin explotar
+        AsyncApexJob job = [
+            SELECT Status
+            FROM   AsyncApexJob
+            WHERE  Id = :jobId
         ];
+        System.assertNotEquals(null, job, 'El job debe existir aunque el Id sea nulo');
+    }
+
+    @isTest
+    static void givenOppWithoutContractWhenEnqueueThenHandledGracefully() {
+        // GIVEN
+        insertContractData();
+        Account acc = [SELECT Id FROM Account WHERE Name = 'Francesca Moreno' LIMIT 1];
         Opportunity newOpp = TestDataFactory.createOpportunity(acc.Id, 'Contrato', true);
-        Boolean handled = false;
+
         // WHEN
         Test.startTest();
-        try {
-            System.enqueueJob(new ContractEmail_Queueable(newOpp.Id));
-            handled = true;
-        } catch (Exception e) {
-            handled = true;
-        }
+        Id jobId = System.enqueueJob(new ContractEmail_Queueable(newOpp.Id));
         Test.stopTest();
+
         // THEN
-        System.assert(handled, 'Opp sin contrato debe manejarse sin error crítico');
+        AsyncApexJob job = [SELECT Status FROM AsyncApexJob WHERE Id = :jobId];
+        System.assertNotEquals(null, job, 'El job debe existir aunque no haya contrato');
     }
 
     @isTest
     static void givenEjecutivoWhenEnqueueThenCanEnqueue() {
         // GIVEN
-        User ejecutivo = TestDataFactory.buildUser(TestDataFactory.ROLE_EJECUTIVO, 'ejecutivo.test.benefits@novabank.test.com');
-        insert ejecutivo;
-        Opportunity opp = [
-            SELECT Id 
-            FROM Opportunity 
-            LIMIT 1
-        ];
-        // WHEN
+        insertContractData();
+        User ejecutivo = getEjecutivo();
+        Opportunity opp = getTestOpportunity();
+
         System.runAs(ejecutivo) {
+            // WHEN
             Test.startTest();
             Id jobId = System.enqueueJob(new ContractEmail_Queueable(opp.Id));
             Test.stopTest();
+
             // THEN
             System.assertNotEquals(null, jobId, 'Ejecutivo debe poder encolar el job');
         }
@@ -149,59 +165,37 @@ private class ContractEmail_Queueable_Test {
     @isTest
     static void givenAnalistaWhenEnqueueThenCanEnqueue() {
         // GIVEN
-        User analista = TestDataFactory.buildUser(TestDataFactory.ROLE_ANALISTA, 'analista.test.benefits@novabank.test.com');
-        insert analista;
-        Opportunity opp = [
-            SELECT Id 
-            FROM Opportunity 
-            LIMIT 1
-        ];
-        // WHEN
+        insertContractData();
+        User analista = getAnalista();
+        Opportunity opp = getTestOpportunity();
+
         System.runAs(analista) {
+            // WHEN
             Test.startTest();
             Id jobId = System.enqueueJob(new ContractEmail_Queueable(opp.Id));
             Test.stopTest();
+
             // THEN
             System.assertNotEquals(null, jobId, 'Analista debe poder encolar el job');
         }
     }
 
     @isTest
-    static void givenNoOpportunityAccessWhenExecuteThenHandled() {
+    static void givenUserWithNoAccessWhenEnqueueThenJobHandledGracefully() {
         // GIVEN
-        ContractEmail_Queueable.overrideOpportunityAccessible = false;
-        Opportunity opp = [SELECT Id FROM Opportunity LIMIT 1];
-        // WHEN
-        Test.startTest();
-        Id jobId = System.enqueueJob(new ContractEmail_Queueable(opp.Id));
-        Test.stopTest();
-        // THEN
-        System.assertNotEquals(null, jobId, 'Job debe encolarse aunque no haya acceso a Opportunity');
-    }
+        insertContractData();
+        User noAccess = getNoAccessUser();
+        Opportunity opp = getTestOpportunity();
 
-    @isTest
-    static void givenNoContentDocLinkAccessWhenExecuteThenHandled() {
-        // GIVEN
-        ContractEmail_Queueable.overrideContentDocLinkAccessible = false;
-        Opportunity opp = [SELECT Id FROM Opportunity LIMIT 1];
-        // WHEN
-        Test.startTest();
-        Id jobId = System.enqueueJob(new ContractEmail_Queueable(opp.Id));
-        Test.stopTest();
-        // THEN
-        System.assertNotEquals(null, jobId, 'Job debe encolarse aunque no haya acceso a CDL');
-    }
+        System.runAs(noAccess) {
+            // WHEN
+            Test.startTest();
+            Id jobId = System.enqueueJob(new ContractEmail_Queueable(opp.Id));
+            Test.stopTest();
 
-    @isTest
-    static void givenNoContentVersionAccessWhenExecuteThenHandled() {
-        // GIVEN
-        ContractEmail_Queueable.overrideContentVersionAccessible = false;
-        Opportunity opp = [SELECT Id FROM Opportunity LIMIT 1];
-        // WHEN
-        Test.startTest();
-        Id jobId = System.enqueueJob(new ContractEmail_Queueable(opp.Id));
-        Test.stopTest();
-        // THEN
-        System.assertNotEquals(null, jobId, 'Job debe encolarse aunque no haya acceso a CV');
+            // THEN
+            AsyncApexJob job = [SELECT Status FROM AsyncApexJob WHERE Id = :jobId];
+            System.assertNotEquals(null, job, 'Job debe existir aunque el usuario no tenga acceso');
+        }
     }
 }

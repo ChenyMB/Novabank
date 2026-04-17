@@ -1,21 +1,30 @@
 /**
- * @class       EmailNotificationQueueable
- * @description Clase Queueable que gestiona el envío asíncrono de correo electrónico al cliente cuando su tarjeta de crédito es emitida.
- *              Se dispara desde el Record-Triggered Flow al ganar una Oportunidad.
- *              Aplica with sharing para respetar el modelo de seguridad de la org.
- * @author      NovaBank - Michelle Moreno
- */
+ * @description       : 
+ * @author            : ChangeMeIn@UserSettingsUnder.SFDoc
+ * @group             : 
+ * @last modified on  : 04-16-2026
+ * @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
+**/
 public with sharing class EmailNotificationQueueable implements Queueable {
 
-    private Id opportunityId;
+    private List<Id> opportunityIds;
+
+    @TestVisible
+    private static String templateDevName = 'Confirmation_Email_Card';
+
+    @TestVisible
+    private static Boolean throwQueryExceptionForTest = false;
+
+    @TestVisible
+    private static Boolean throwEmailExceptionForTest = false;
 
     /**
      * @method      Constructor
      * @description Recibe el ID de la Oportunidad desde el contexto invocador.
      * @param       opportunityId   ID del registro Opportunity ganado.
      */
-    public EmailNotificationQueueable(Id opportunityId) {
-        this.opportunityId = opportunityId;
+    public EmailNotificationQueueable(List<Id> opportunityIds) {
+        this.opportunityIds = opportunityIds;
     }
 
     /**
@@ -24,38 +33,49 @@ public with sharing class EmailNotificationQueueable implements Queueable {
      * @param       context     Contexto de ejecución del job asíncrono.
      */
     public void execute(QueueableContext context) {
-        Opportunity opp = obtenerOportunidad();
-        if (opp == null) {
-            return;
-        }
-        if (!validarEmail(opp)) {
-            return;
-        }
         EmailTemplate template = obtenerTemplate();
         if (template == null) {
             return;
         }
-        Messaging.SingleEmailMessage email = construirEmail(opp, template);
-        enviarEmail(email);
+
+        List<Opportunity> opps = obtenerOportunidades();
+        if (opps.isEmpty()) {
+            return;
+        }
+
+        List<Messaging.SingleEmailMessage> emails = new List<Messaging.SingleEmailMessage>();
+        for (Opportunity opp : opps) {
+            if (validarEmail(opp)) {
+                emails.add(construirEmail(opp, template));
+            }
+        }
+
+        if (!emails.isEmpty()) {
+            enviarEmails(emails);
+        }
     }
 
     /**
-     * @method      obtenerOportunidad
-     * @description Consulta la Oportunidad con los campos necesarios para el email.
-     *              Usa WITH SECURITY_ENFORCED para respetar la seguridad a nivel de campo y objeto del usuario en ejecución.
-     * @return      Opportunity con datos del titular, o null si no se encuentra.
+     * @method      obtenerOportunidades
+     * @description Consulta todas las Oportunidades de la lista.
+     * @return      Lista de Opportunity con datos del titular
      */
-    private Opportunity obtenerOportunidad() {
+    private List<Opportunity> obtenerOportunidades() {
         try {
+            if (throwQueryExceptionForTest) {
+                throw new QueryException('Error simulado para pruebas');
+            }
+
             return [
-                SELECT  Id, Name, AccountId, Account.Name, Account.Email__c, RequestedCreditLine__c, Product__r.Name, CloseDate, OwnerId
+                SELECT  Id, Name, AccountId, Account.Name, Account.Email__c, RequestedCreditLine__c, 
+                Product__r.Name, CloseDate, OwnerId
                 FROM    Opportunity
-                WHERE   Id = :opportunityId
+                WHERE   Id = :opportunityIds
                 WITH    SECURITY_ENFORCED
             ];
         } catch (QueryException e) {
             System.debug(LoggingLevel.ERROR,'Error: ' + e.getMessage());
-            return null;
+            return new List<Opportunity>();
         }
     }
 
@@ -67,7 +87,7 @@ public with sharing class EmailNotificationQueueable implements Queueable {
      */
     private Boolean validarEmail(Opportunity opp) {
         if (String.isBlank(opp.Account.Email__c)) {
-            System.debug(LoggingLevel.WARN,'Sin email registrado. OppId: '+ opportunityId);
+            System.debug(LoggingLevel.WARN, 'Sin email registrado. OppId: ' + opp.Id);
             return false;
         }
         return true;
@@ -79,17 +99,17 @@ public with sharing class EmailNotificationQueueable implements Queueable {
      *              Usa WITH SECURITY_ENFORCED.
      * @return      EmailTemplate encontrado, o null si no existe en la org.
      */
-    @TestVisible
-    private static String templateDevName = 'Confirmation_Email_Card';
-
     private EmailTemplate obtenerTemplate() {
         List<EmailTemplate> templates = [
             SELECT Id, HtmlValue, Subject
             FROM   EmailTemplate
             WHERE  DeveloperName = :templateDevName
+            WITH   SECURITY_ENFORCED
             LIMIT 1
         ];
+        
         if (templates.isEmpty()) {
+            System.debug(LoggingLevel.WARN, 'Template no encontrado: ' + templateDevName);
             return null;
         }
         return templates[0];
@@ -124,12 +144,14 @@ public with sharing class EmailNotificationQueueable implements Queueable {
      * @description Ejecuta el envío del email construido.
      * @param       email   Mensaje de email listo para mandar.
      */
-    private void enviarEmail(Messaging.SingleEmailMessage email) {
+    private void enviarEmails(List<Messaging.SingleEmailMessage> emails) {
         try {
-            Messaging.sendEmail(new List<Messaging.SingleEmailMessage>{ email });
-            System.debug(LoggingLevel.INFO,'Email enviado. OppId: '+ opportunityId);
+            if (throwEmailExceptionForTest) {
+                throw new EmailException('Error simulado para pruebas');
+            }
+            Messaging.sendEmail(emails);
         } catch (EmailException e) {
-            System.debug(LoggingLevel.ERROR,'EmailNotificationQueueable.enviarEmail - Error de envío: '+ e.getMessage());
+            System.debug(LoggingLevel.ERROR, 'Error de envío: ' + e.getMessage());
         }
     }
 }

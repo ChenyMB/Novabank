@@ -94,7 +94,8 @@ global with sharing class OpportunityAPI_Ctr {
             throw new QueryException('No tiene permisos para acceder a Opportunity.');
         }
         return [
-            SELECT Id, Name, Product__c, Product__r.Name, Amount, RequestedCreditLine__c, InterestRate__c, CloseDate, LeadSource, Owner.Name
+            SELECT Id, Product__r.Name, Amount, RequestedCreditLine__c, 
+            InterestRate__c, CloseDate, LeadSource, Owner.Name
             FROM Opportunity
             WHERE AccountId      = :accountId
             AND   StageName      = 'Cerrada Ganada'

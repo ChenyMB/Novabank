@@ -83,7 +83,7 @@ public class TestDataFactory {
     public static Account createAccount(Boolean doInsert) {
         Account acc = new Account(
             Name                = 'Francesca Moreno',
-            Email__c            = 'asmpmorenobest@gmail.com',
+            Email__c            = 'francescafra.moreno@novabank.test.com',
             DocumentType__c     = 'DNI',
             DocumentNumber__c   = '12345678',
             BirthDate__c        = Date.newInstance(2003, 6, 3),
@@ -105,15 +105,18 @@ public class TestDataFactory {
      * @return          Lead con o sin Id
      */
     public static Lead createLead(Boolean doInsert) {
+
+        Product2 product = createProduct('Visa Plata', true);
+
         Lead lead = new Lead(
             FirstName              = 'Francesca',
             LastName               = 'Best',
             Company                = 'NTT Data',
-            Email                  = 'asmpmorenobest@gmail.com',
+            Email                  = 'francesca.best@novabank.test.com',
             Status                 = 'Inicio',
             MonthlyIncome__c       = 3000,
             RequestedCreditLine__c = 2500,
-            Product__c             = 'Visa Plata',
+            Product__c             = product.Id,
             Max_Attention_Days__c  = 30
         );
         if (doInsert){
@@ -123,21 +126,29 @@ public class TestDataFactory {
     }
 
     /**
-     * @description Crea un Lead vencido (creado hace 31 días) para pruebas del Schedule-Triggered Flow de desestimación.
+     * @description Crea un Lead en estado "Inicio" para pruebas del Schedule-Triggered
+     *              Flow de desestimación automática.
+     *
+     *              IMPORTANTE: este método solo inserta el Lead. Para simular que han
+     *              pasado 31 días el test llamador DEBE invocar después de insertar:
+     *                  Test.setCreatedDate(lead.Id, DateTime.now().addDays(-31));
+     *              Sin esa línea el Flow de desestimación NO lo detectará como vencido.
      *
      * @param doInsert  Si true, inserta el registro
-     * @return          Lead con fecha de creación manipulada
+     * @return          Lead en estado Inicio listo para marcarse como vencido
      */
     public static Lead createExpiredLead(Boolean doInsert) {
+        Product2 product = createProduct('Visa Plata', true);
+
         Lead lead = new Lead(
             FirstName              = 'Carlos',
             LastName               = 'Moreno',
             Company                = 'Sin Empresa',
-            Email                  = 'asmpmorenobest@gmail.com',
+            Email                  = 'carlos.moreno.expired@novabank.test.com',
             Status                 = 'Inicio',
             MonthlyIncome__c       = 2000,
             RequestedCreditLine__c = 1500,
-            Product__c             = 'Visa Plata',
+            Product__c             = product.Id,
             Max_Attention_Days__c  = 30
         );
         if (doInsert){
@@ -156,18 +167,7 @@ public class TestDataFactory {
      */
     public static Opportunity createOpportunity(Id accountId, String stageName, Boolean doInsert) {
 
-        Product2 product = new Product2(
-            Name                    = 'Visa Plata',
-            IsActive                = true,
-            Card_Type__c            = 'Visa',
-            Card_Category__c        = 'Plata',
-            Minimum_Credit_Line__c  = 500,
-            Maximum_Credit_Line__c  = 3000,
-            Interest_Rate__c        = 32.5,
-            Sales_Channel__c        = 'Web'
-        );
-
-        insert product;
+        Product2 product = createProduct('Visa Plata', true);
 
         Opportunity opp = new Opportunity(
             Name                   = 'Opp Test NovaBank',
@@ -197,18 +197,7 @@ public class TestDataFactory {
      */
     public static Opportunity createWonOpportunity(Id accountId, Boolean doInsert) {
         
-        Product2 product = new Product2(
-            Name                    = 'Visa Plata',
-            IsActive                = true,
-            Card_Type__c            = 'Visa',
-            Card_Category__c        = 'Plata',
-            Minimum_Credit_Line__c  = 500,
-            Maximum_Credit_Line__c  = 3000,
-            Interest_Rate__c        = 32.5,
-            Sales_Channel__c        = 'Web'
-        );
-
-        insert product;
+        Product2 product = createProduct('Visa Plata', true);
 
         Opportunity opp = new Opportunity(
             Name                   = 'Opp Ganada NovaBank',
@@ -236,15 +225,19 @@ public class TestDataFactory {
      * @return           Opportunity con línea alta
      */
     public static Opportunity createHighCreditOpportunity(Id accountId, Boolean doInsert) {
+        
+        Product2 product = createProduct('Visa Oro', true);
+
         Opportunity opp = new Opportunity(
             Name                   = 'Opp Alta Credito NovaBank',
             AccountId              = accountId,
             StageName              = 'Inicio',
+            Approval_Status__c     = 'Pendiente',
             CloseDate              = Date.today().addDays(45),
             RequestedCreditLine__c = 5000,
             InterestRate__c        = 22.0,
             PaymentDate__c         = Date.today().addDays(1),
-            Product__c             = 'Visa Oro',
+            Product__c             = product.Id,
             MachineWithdrawal__c   = true
         );
         if (doInsert){
@@ -371,14 +364,14 @@ public class TestDataFactory {
                 SELECT Id, ContentDocumentId 
                 FROM ContentVersion 
                 WHERE Id = :cv.Id
-                ];
-            ContentDocumentLink cdl = new ContentDocumentLink(
+            ];
+
+            insert new ContentDocumentLink(
                 ContentDocumentId = cv.ContentDocumentId,
                 LinkedEntityId    = linkedEntityId,
                 ShareType         = 'V',
                 Visibility        = 'AllUsers'
             );
-            insert cdl;
         }
         return cv;
     }
@@ -391,11 +384,16 @@ public class TestDataFactory {
      * @return             Product2 con o sin Id
      */
     public static Product2 createProduct(String productName, Boolean doInsert) {
+        String category = productName.contains(' ') ? productName.substringAfterLast(' ') : productName;
         Product2 prod = new Product2(
             Name             = productName,
             IsActive         = true,
             Card_Type__c     = 'Visa',
-            Card_Category__c = productName
+            Card_Category__c = category,
+            Minimum_Credit_Line__c = 500,
+            Maximum_Credit_Line__c = 3000,
+            Interest_Rate__c       = 32.5,
+            Sales_Channel__c       = 'Web'
         );
         if (doInsert) {
             insert prod;

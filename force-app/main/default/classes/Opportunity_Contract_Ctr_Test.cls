@@ -14,19 +14,27 @@ private class Opportunity_Contract_Ctr_Test {
         TestDataFactory.createOpportunity(acc.Id, 'Contrato', true);
     }
 
+    private static Opportunity getTestOpp() {
+        return [SELECT Id FROM Opportunity];
+    }
+
+    private static void setCurrentPage(Id oppId) {
+        PageReference page = Page.Opportunity_Contract;
+        if (oppId != null) {
+            page.getParameters().put('id', oppId);
+        }
+        Test.setCurrentPage(page);
+    }
+
     @isTest
     static void givenValidOppIdWhenConstructorThenOppLoaded() {
         // GIVEN
-        Opportunity opp = [SELECT Id FROM Opportunity LIMIT 1];
-        PageReference page = Page.Opportunity_Contract;
-        page.getParameters().put('id', opp.Id);
-        Test.setCurrentPage(page);
-
+        Opportunity opp = getTestOpp();
+        setCurrentPage(opp.Id);
         // WHEN
         Test.startTest();
         Opportunity_Contract_Ctr ctr = new Opportunity_Contract_Ctr();
         Test.stopTest();
-
         // THEN
         System.assertNotEquals(null, ctr.opp, 'Opp debe cargarse correctamente');
         System.assertEquals(opp.Id, ctr.opp.Id, 'Id debe coincidir');
@@ -35,29 +43,41 @@ private class Opportunity_Contract_Ctr_Test {
     @isTest
     static void givenNullOppIdWhenConstructorThenOppIsNull() {
         // GIVEN
-        PageReference page = Page.Opportunity_Contract;
-        Test.setCurrentPage(page);
-
+        setCurrentPage(null);
         // WHEN
         Test.startTest();
         Opportunity_Contract_Ctr ctr = new Opportunity_Contract_Ctr();
         Test.stopTest();
-
         // THEN
         System.assertEquals(null, ctr.opp, 'Con Id nulo, opp debe ser null');
     }
 
     @isTest
-    static void givenValidOppIdWhenGenerarContratThenContentVersionCreated() {
+    static void givenNoAccessWhenConstructorThenOppIsNull() {
+        // GIVEN
+        Opportunity opp = getTestOpp();
+        setCurrentPage(opp.Id);
+        User noAccess = TestDataFactory.buildUserNoAccess('noaccess.ctr@novabank.test.com');
+        insert noAccess;
+        // WHEN
+        System.runAs(noAccess) {
+            Test.startTest();
+            Opportunity_Contract_Ctr ctr = new Opportunity_Contract_Ctr();
+            Test.stopTest();
+            // THEN
+            System.assertEquals(null, ctr.opp, 'Sin acceso opp debe ser null');
+        }
+    }
+
+    @isTest
+    static void givenValidOppIdWhenGenerarContratoThenContentVersionCreated() {
         // GIVEN
         Opportunity_Contract_Service.overridePdfBlob = Blob.valueOf('PDF simulado Ctr Test');
-        Opportunity opp = [SELECT Id FROM Opportunity LIMIT 1];
-
+        Id oppId = getTestOpp().Id;
         // WHEN
         Test.startTest();
-        Opportunity_Contract_Ctr.generarYAlmacenarContrato(opp.Id);
+        Opportunity_Contract_Ctr.generarYAlmacenarContrato(oppId);
         Test.stopTest();
-
         // THEN
         List<ContentVersion> cvs = [SELECT Id, Title FROM ContentVersion];
         System.assertEquals(1, cvs.size(), 'Debe crearse 1 ContentVersion');
@@ -65,45 +85,22 @@ private class Opportunity_Contract_Ctr_Test {
     }
 
     @isTest
-    static void givenValidOppIdWhenGenerarContratThenLinkedToOpp() {
+    static void givenValidOppIdWhenGenerarContratoThenLinkedToOpp() {
         // GIVEN
         Opportunity_Contract_Service.overridePdfBlob = Blob.valueOf('PDF simulado Ctr Test');
-        Opportunity opp = [SELECT Id FROM Opportunity LIMIT 1];
-
+        Id oppId = getTestOpp().Id;
         // WHEN
         Test.startTest();
-        Opportunity_Contract_Ctr.generarYAlmacenarContrato(opp.Id);
+        Opportunity_Contract_Ctr.generarYAlmacenarContrato(oppId);
         Test.stopTest();
-
         // THEN
-        ContentVersion cv = [SELECT ContentDocumentId FROM ContentVersion LIMIT 1];
+        ContentVersion cv = [SELECT ContentDocumentId FROM ContentVersion];
         List<ContentDocumentLink> links = [
-            SELECT Id FROM ContentDocumentLink
-            WHERE ContentDocumentId = :cv.ContentDocumentId
-            AND   LinkedEntityId    = :opp.Id
+            SELECT Id
+            FROM   ContentDocumentLink
+            WHERE  ContentDocumentId = :cv.ContentDocumentId
+            AND    LinkedEntityId    = :oppId
         ];
         System.assertEquals(1, links.size(), 'Contrato debe estar vinculado a la Opportunity');
-    }
-
-    @isTest
-    static void givenNoAccessWhenConstructorThenOppIsNull() {
-        // GIVEN
-        Opportunity opp = [SELECT Id FROM Opportunity LIMIT 1];
-        PageReference page = Page.Opportunity_Contract;
-        page.getParameters().put('id', opp.Id);
-        Test.setCurrentPage(page);
-
-        User noAccess = TestDataFactory.buildUserNoAccess('noaccess.ctr@novabank.test.com');
-        insert noAccess;
-
-        // WHEN
-        System.runAs(noAccess) {
-            Test.startTest();
-            Opportunity_Contract_Ctr ctr = new Opportunity_Contract_Ctr();
-            Test.stopTest();
-
-            // THEN
-            System.assertEquals(null, ctr.opp, 'Sin acceso opp debe ser null');
-        }
     }
 }

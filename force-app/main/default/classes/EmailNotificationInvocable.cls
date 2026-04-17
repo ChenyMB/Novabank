@@ -1,9 +1,10 @@
 /**
- * @class       EmailNotificationInvocable
- * @description Expone un método invocable que el Flow llama directamente al ganar una Oportunidad, delegando el envío asíncrono al Queueable.
- *              Aplica with sharing para respetar el modelo de seguridad de la org.
- * @author      NovaBank - Michelle Moreno
- */
+ * @description       : 
+ * @author            : ChangeMeIn@UserSettingsUnder.SFDoc
+ * @group             : 
+ * @last modified on  : 04-16-2026
+ * @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
+**/
 public with sharing class EmailNotificationInvocable {
 
     /**
@@ -37,13 +38,13 @@ public with sharing class EmailNotificationInvocable {
     }
 
     /**
-     * @method      encolarJobs
+     * @method      encolarJobsa
      * @description Itera la lista de IDs válidos y encola un job Queueable independiente por cada Oportunidad.
      * @param       idsValidos  Lista de IDs de Oportunidades ya validados.
      */
     private static void encolarJobs(List<Id> idsValidos) {
-        for (Id oppId : idsValidos) {
-            System.enqueueJob(new EmailNotificationQueueable(oppId));
+        if (!idsValidos.isEmpty()) {
+            System.enqueueJob(new EmailNotificationQueueable(idsValidos));
         }
     }
 }

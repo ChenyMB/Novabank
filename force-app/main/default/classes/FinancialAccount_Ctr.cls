@@ -17,30 +17,15 @@ public with sharing class FinancialAccount_Ctr {
             throw new AuraHandledException('No tiene permisos para acceder a Cuentas Financieras.');
         }
         
-        if (Schema.sObjectType.FinancialAccount__c
-            .fields.CardNumber__c.isAccessible()) {
-            return [
-                SELECT Id, Name, Account__c, CardType__c, CardNumber__c, 
-                    ApprovedCreditLine__c, CardStatus__c, IssueDate__c, 
-                    ProductCard__c, ProductCard__r.Name, 
-                    Opportunity_Won__c, Opportunity_Won__r.Name
-                FROM FinancialAccount__c
-                WHERE Account__c = :accountId
-                WITH SECURITY_ENFORCED
-                ORDER BY IssueDate__c DESC
-            ];
-        }
-        
-        return [
-            SELECT Id, Name, Account__c, CardType__c, 
+        List<FinancialAccount__c> records = [
+            SELECT Id, Name, CardType__c, CardNumber__c,
                 ApprovedCreditLine__c, CardStatus__c, IssueDate__c,
-                ProductCard__c, ProductCard__r.Name,
-                Opportunity_Won__c, Opportunity_Won__r.Name
-            FROM FinancialAccount__c
-            WHERE Account__c = :accountId
-            WITH SECURITY_ENFORCED
+                ProductCard__r.Name, Opportunity_Won__r.Name
+            FROM   FinancialAccount__c
+            WHERE  Account__c = :accountId
             ORDER BY IssueDate__c DESC
         ];
+        return Security.stripInaccessible(AccessType.READABLE, records).getRecords();
     }
 
     /**

@@ -15,12 +15,15 @@ public with sharing class Benefits_Ctr {
         if (!Schema.sObjectType.Benefits__c.isAccessible()) {
             throw new AuraHandledException('No tiene permisos para acceder a Beneficios.');
         }
-        return [
-            SELECT Id, Name, CardName__c, AnnualEffectiveRate__c, MilesAccumulation__c, CashBackPercentage__c, AnnualFee__c, AdditionalBenefits__c, Priority__c, Status__c, Product__c, Product__r.Name
+        List<Benefits__c> benefits = [
+            SELECT Id, Name, CardName__c, AnnualEffectiveRate__c, MilesAccumulation__c, 
+            CashBackPercentage__c, AnnualFee__c, AdditionalBenefits__c, Product__r.Name
             FROM Benefits__c
             WHERE Status__c = 'Activo'
-            WITH SECURITY_ENFORCED
             ORDER BY Priority__c ASC
         ];
+
+        SObjectAccessDecision decision = Security.stripInaccessible(AccessType.READABLE,benefits);
+        return (List<Benefits__c>) decision.getRecords();
     }
 }
